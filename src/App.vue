@@ -207,26 +207,41 @@ const createPeerConnectionIfNeeded = () => {
 
   peerConnection.ontrack = (ev) => {
     console.log("ontrack event streams:", ev.streams);
+    console.log("ontrack event track:", ev.track);
     const stream = ev.streams && ev.streams[0] ? ev.streams[0] : null;
     if (stream) {
       // persist and attach when possible
       remoteMediaStream = stream;
+      console.log("Remote stream received:", stream);
       if (remoteVideo.value && remoteVideo.value.srcObject !== stream) {
         remoteVideo.value.srcObject = stream;
+        remoteVideo.value.playsInline = true;
         remoteVideo.value.play().catch((err) => {
           console.warn("remote.play() blocked:", err);
           showRemotePlayButton.value = true;
         });
+        console.log("Remote video attached and playing");
+      } else {
+        console.log(
+          "Remote video element not ready, stream will be attached via watcher"
+        );
       }
     } else {
       // fallback: create MediaStream from track
       const fallbackStream = new MediaStream([ev.track]);
       remoteMediaStream = fallbackStream;
+      console.log("Fallback remote stream created:", fallbackStream);
       if (remoteVideo.value && remoteVideo.value.srcObject !== fallbackStream) {
         remoteVideo.value.srcObject = fallbackStream;
+        remoteVideo.value.playsInline = true;
         remoteVideo.value
           .play()
           .catch(() => (showRemotePlayButton.value = true));
+        console.log("Fallback remote video attached and playing");
+      } else {
+        console.log(
+          "Remote video element not ready, fallback stream will be attached via watcher"
+        );
       }
     }
   };
@@ -519,18 +534,35 @@ const acceptCall = async () => {
     // Drain queued candidates (if any)
     await drainPendingCandidates();
 
-    // Switch to video call view
+    // Switch to video call view FIRST
     currentView.value = "video-call";
 
-    // For mobile, ensure video plays after view change
-    setTimeout(() => {
-      if (localVideo.value && localVideo.value.srcObject) {
-        localVideo.value.play().catch(console.warn);
+    // Wait for DOM update, then ensure videos play
+    await new Promise((resolve) => setTimeout(resolve, 200));
+
+    // Ensure local video is attached and playing
+    if (localVideo.value && localStream) {
+      localVideo.value.srcObject = localStream;
+      localVideo.value.muted = true;
+      localVideo.value.playsInline = true;
+      try {
+        await localVideo.value.play();
+        console.log("Local video playing successfully");
+      } catch (err) {
+        console.warn("Local video play failed:", err);
       }
-      if (remoteVideo.value && remoteVideo.value.srcObject) {
-        remoteVideo.value.play().catch(console.warn);
+    }
+
+    // Ensure remote video plays if available
+    if (remoteVideo.value && remoteVideo.value.srcObject) {
+      try {
+        await remoteVideo.value.play();
+        console.log("Remote video playing successfully");
+      } catch (err) {
+        console.warn("Remote video play failed:", err);
+        showRemotePlayButton.value = true;
       }
-    }, 100);
+    }
   } catch (err) {
     console.error("acceptCall error", err);
     // Show user-friendly error
@@ -660,14 +692,17 @@ watch([currentView, remoteVideo], async () => {
     remoteVideo.value &&
     remoteMediaStream
   ) {
+    console.log("Watcher: Attaching remote stream to video element");
     if (remoteVideo.value.srcObject !== remoteMediaStream) {
       remoteVideo.value.srcObject = remoteMediaStream;
+      remoteVideo.value.playsInline = true;
     }
     try {
       await remoteVideo.value.play();
       showRemotePlayButton.value = false;
+      console.log("Watcher: Remote video playing successfully");
     } catch (err) {
-      console.warn("remoteVideo play after mount blocked:", err);
+      console.warn("Watcher: remoteVideo play after mount blocked:", err);
       showRemotePlayButton.value = true;
     }
   }
@@ -676,14 +711,17 @@ watch([currentView, remoteVideo], async () => {
 // Ensure local stream attaches once the video element exists and view is active
 watch([currentView, localVideo], async () => {
   if (currentView.value === "video-call" && localVideo.value && localStream) {
+    console.log("Watcher: Attaching local stream to video element");
     if (localVideo.value.srcObject !== localStream) {
       localVideo.value.srcObject = localStream;
       localVideo.value.muted = true; // Ensure muted to avoid echo
+      localVideo.value.playsInline = true;
     }
     try {
       await localVideo.value.play();
+      console.log("Watcher: Local video playing successfully");
     } catch (err) {
-      console.warn("localVideo play after mount blocked:", err);
+      console.warn("Watcher: localVideo play after mount blocked:", err);
     }
   }
 });
