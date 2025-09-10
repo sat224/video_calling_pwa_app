@@ -77,7 +77,20 @@
           <h3>Calling...</h3>
           <p>{{ calleeInfo.username || calleeId }}</p>
         </div>
-        <button @click="endCall" class="end-call-btn">End Call</button>
+
+        <!-- Show local video during outgoing call -->
+        <div class="outgoing-video-container">
+          <video
+            ref="localVideo"
+            autoplay
+            muted
+            playsinline
+            webkit-playsinline
+            class="outgoing-local-video"
+          ></video>
+        </div>
+
+        <button @click="endCall" class="end-call-btn">📞 End Call</button>
       </div>
 
       <!-- Incoming Call -->
@@ -163,6 +176,7 @@ let peerConnection = null;
 let socket = null;
 let pendingRemoteCandidates = []; // queue ICE until remoteDescription exists
 let remoteMediaStream = null; // persist remote stream even if element not mounted yet
+let callTimeout = null; // timeout for call establishment
 
 /* ---------- helpers ---------- */
 const filteredUsers = computed(() =>
@@ -224,8 +238,24 @@ const createPeerConnectionIfNeeded = () => {
         peerConnection.connectionState || ""
       )
     ) {
+      console.log("Connection lost, cleaning up call");
       cleanupCall();
     }
+  };
+
+  // Monitor ICE connection state for better debugging
+  peerConnection.oniceconnectionstatechange = () => {
+    console.log("ICE connection state:", peerConnection.iceConnectionState);
+    if (peerConnection.iceConnectionState === "failed") {
+      console.log("ICE connection failed, attempting to restart ICE");
+      // Try to restart ICE
+      peerConnection.restartIce();
+    }
+  };
+
+  // Monitor ICE gathering state
+  peerConnection.onicegatheringstatechange = () => {
+    console.log("ICE gathering state:", peerConnection.iceGatheringState);
   };
 };
 
@@ -328,6 +358,12 @@ const initializeSocket = () => {
     console.log("call-accepted", data);
     currentCallId.value = data.callId;
 
+    // Clear call timeout
+    if (callTimeout) {
+      clearTimeout(callTimeout);
+      callTimeout = null;
+    }
+
     // On caller side: set remote description (answer) and drain queued ICE
     try {
       createPeerConnectionIfNeeded();
@@ -335,9 +371,25 @@ const initializeSocket = () => {
         new RTCSessionDescription(data.answer)
       );
       await drainPendingCandidates();
+
+      // Switch to video call view
       currentView.value = "video-call";
+
+      // Ensure videos play after view change (important for mobile)
+      setTimeout(() => {
+        if (localVideo.value && localVideo.value.srcObject) {
+          localVideo.value.play().catch(console.warn);
+        }
+        if (remoteVideo.value && remoteVideo.value.srcObject) {
+          remoteVideo.value.play().catch(console.warn);
+        }
+      }, 100);
+
+      console.log("Call accepted, switched to video call view");
     } catch (err) {
       console.error("Error applying answer on caller:", err);
+      alert("Failed to establish video call. Please try again.");
+      cleanupCall();
     }
   });
 
@@ -374,25 +426,51 @@ const initializeSocket = () => {
 /* ---------- Call flow: caller initiates ---------- */
 const initiateCall = async () => {
   if (!calleeId.value) return;
-  calling.value = true;
-  currentView.value = "outgoing-call";
 
-  createPeerConnectionIfNeeded();
+  try {
+    calling.value = true;
+    currentView.value = "outgoing-call";
 
-  // get local media and add tracks
-  const stream = await startLocalStream();
-  stream.getTracks().forEach((t) => peerConnection.addTrack(t, stream));
+    // Start local stream first (important for mobile)
+    const stream = await startLocalStream();
 
-  // create offer
-  const offer = await peerConnection.createOffer();
-  await peerConnection.setLocalDescription(offer);
+    // Create peer connection after getting stream
+    createPeerConnectionIfNeeded();
 
-  // send offer to server (server will forward to callee)
-  socket.emit("initiate-call", {
-    callerId: currentUser.userId,
-    calleeId: calleeId.value,
-    offer: peerConnection.localDescription,
-  });
+    // Add tracks to peer connection
+    stream.getTracks().forEach((t) => peerConnection.addTrack(t, stream));
+
+    // Create offer with proper constraints for mobile
+    const offer = await peerConnection.createOffer({
+      offerToReceiveAudio: true,
+      offerToReceiveVideo: true,
+      voiceActivityDetection: true,
+    });
+
+    await peerConnection.setLocalDescription(offer);
+
+    // Send offer to server (server will forward to callee)
+    socket.emit("initiate-call", {
+      callerId: currentUser.userId,
+      calleeId: calleeId.value,
+      offer: peerConnection.localDescription,
+    });
+
+    // Set timeout for call establishment (30 seconds)
+    callTimeout = setTimeout(() => {
+      if (currentView.value === "outgoing-call") {
+        console.log("Call timeout - no answer received");
+        alert("Call timed out. The other person may not be available.");
+        cleanupCall();
+      }
+    }, 30000);
+
+    console.log("Call initiated successfully");
+  } catch (err) {
+    console.error("initiateCall error:", err);
+    alert("Failed to start call. Please try again.");
+    cleanupCall();
+  }
 };
 
 /* ---------- When user clicks contact ---------- */
@@ -483,6 +561,12 @@ const cleanupCall = () => {
       peerConnection = null;
     }
   } catch (e) {}
+
+  // Clear call timeout
+  if (callTimeout) {
+    clearTimeout(callTimeout);
+    callTimeout = null;
+  }
 
   pendingRemoteCandidates = [];
   calling.value = false;
@@ -757,6 +841,23 @@ watch([currentView, localVideo], async () => {
   align-items: center;
   gap: 12px;
   padding: 20px;
+}
+
+.outgoing-video-container {
+  width: 100%;
+  max-width: 400px;
+  height: 300px;
+  background: #000;
+  border-radius: 12px;
+  overflow: hidden;
+  margin: 20px 0;
+}
+
+.outgoing-local-video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transform: scaleX(-1); /* Mirror for natural feel */
 }
 
 .call-actions {
