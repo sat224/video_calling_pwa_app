@@ -273,7 +273,15 @@
 </template>
 
 <script setup>
-import { ref, reactive, computed, onMounted, onUnmounted, watch } from "vue";
+import {
+  ref,
+  reactive,
+  computed,
+  onMounted,
+  onUnmounted,
+  watch,
+  nextTick,
+} from "vue";
 import { io } from "socket.io-client";
 
 /* ---------- Reactive state ---------- */
@@ -685,8 +693,9 @@ const acceptCall = async () => {
     // Start call timer
     startCallTimer();
 
-    // Wait for DOM update, then ensure videos play
-    await new Promise((resolve) => setTimeout(resolve, 200));
+    // Wait for DOM update using nextTick for better timing
+    await nextTick();
+    await new Promise((resolve) => setTimeout(resolve, 100));
 
     // Ensure local video is attached and playing
     if (localVideo.value && localStream) {
@@ -709,6 +718,37 @@ const acceptCall = async () => {
       } catch (err) {
         console.warn("Remote video play failed:", err);
         showRemotePlayButton.value = true;
+      }
+    } else if (remoteMediaStream) {
+      // If we have a remote stream but no video element yet, attach it
+      console.log("Attaching remote stream after view switch");
+      if (remoteVideo.value) {
+        remoteVideo.value.srcObject = remoteMediaStream;
+        remoteVideo.value.playsInline = true;
+        try {
+          await remoteVideo.value.play();
+          console.log("Remote video attached and playing after view switch");
+        } catch (err) {
+          console.warn("Remote video play failed after view switch:", err);
+          showRemotePlayButton.value = true;
+        }
+      } else {
+        // If video element still not available, try again after a short delay
+        console.log("Remote video element still not available, retrying...");
+        setTimeout(async () => {
+          if (remoteVideo.value && remoteMediaStream) {
+            console.log("Retry: Attaching remote stream");
+            remoteVideo.value.srcObject = remoteMediaStream;
+            remoteVideo.value.playsInline = true;
+            try {
+              await remoteVideo.value.play();
+              console.log("Retry: Remote video playing successfully");
+            } catch (err) {
+              console.warn("Retry: Remote video play failed:", err);
+              showRemotePlayButton.value = true;
+            }
+          }
+        }, 500);
       }
     }
   } catch (err) {
