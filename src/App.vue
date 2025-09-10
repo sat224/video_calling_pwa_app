@@ -174,7 +174,7 @@
         <!-- Show local video during outgoing call -->
         <div class="outgoing-video-container">
           <video
-            ref="localVideo"
+            ref="outgoingLocalVideo"
             autoplay
             muted
             playsinline
@@ -300,6 +300,7 @@ const callDuration = ref("00:00");
 
 /* ---------- DOM refs ---------- */
 const localVideo = ref(null);
+const outgoingLocalVideo = ref(null);
 const remoteVideo = ref(null);
 const showRemotePlayButton = ref(false);
 
@@ -432,13 +433,17 @@ const startLocalStream = async () => {
     console.log("Local stream tracks:", localStream.getTracks());
 
     // Attach to local video element if it exists
-    if (localVideo.value) {
+    const videoElement =
+      currentView.value === "outgoing-call"
+        ? outgoingLocalVideo.value
+        : localVideo.value;
+    if (videoElement) {
       console.log("Attaching local stream to video element");
-      localVideo.value.srcObject = localStream;
+      videoElement.srcObject = localStream;
       // local is muted to avoid echo
-      localVideo.value.muted = true;
-      localVideo.value.playsInline = true; // Important for iOS
-      localVideo.value
+      videoElement.muted = true;
+      videoElement.playsInline = true; // Important for iOS
+      videoElement
         .play()
         .catch((e) => console.warn("localVideo.play() blocked:", e));
     } else {
@@ -757,6 +762,7 @@ const cleanupCall = () => {
   showRemotePlayButton.value = false;
   if (remoteVideo.value) remoteVideo.value.srcObject = null;
   if (localVideo.value) localVideo.value.srcObject = null;
+  if (outgoingLocalVideo.value) outgoingLocalVideo.value.srcObject = null;
   remoteMediaStream = null;
 };
 
@@ -915,19 +921,31 @@ watch([currentView, remoteVideo], async () => {
 });
 
 // Ensure local stream attaches once the video element exists and view is active
-watch([currentView, localVideo], async () => {
-  if (currentView.value === "video-call" && localVideo.value && localStream) {
-    console.log("Watcher: Attaching local stream to video element");
-    if (localVideo.value.srcObject !== localStream) {
-      localVideo.value.srcObject = localStream;
-      localVideo.value.muted = true; // Ensure muted to avoid echo
-      localVideo.value.playsInline = true;
+watch([currentView, localVideo, outgoingLocalVideo], async () => {
+  if (localStream) {
+    let videoElement = null;
+
+    if (currentView.value === "video-call" && localVideo.value) {
+      videoElement = localVideo.value;
+    } else if (
+      currentView.value === "outgoing-call" &&
+      outgoingLocalVideo.value
+    ) {
+      videoElement = outgoingLocalVideo.value;
     }
-    try {
-      await localVideo.value.play();
-      console.log("Watcher: Local video playing successfully");
-    } catch (err) {
-      console.warn("Watcher: localVideo play after mount blocked:", err);
+
+    if (videoElement && videoElement.srcObject !== localStream) {
+      console.log("Watcher: Attaching local stream to video element");
+      videoElement.srcObject = localStream;
+      videoElement.muted = true; // Ensure muted to avoid echo
+      videoElement.playsInline = true;
+
+      try {
+        await videoElement.play();
+        console.log("Watcher: Local video playing successfully");
+      } catch (err) {
+        console.warn("Watcher: localVideo play after mount blocked:", err);
+      }
     }
   }
 });
