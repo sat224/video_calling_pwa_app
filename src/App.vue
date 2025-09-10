@@ -343,6 +343,9 @@ const createPeerConnectionIfNeeded = () => {
   peerConnection.ontrack = (ev) => {
     console.log("ontrack event streams:", ev.streams);
     console.log("ontrack event track:", ev.track);
+    console.log("Current view when ontrack fires:", currentView.value);
+    console.log("Remote video element exists:", !!remoteVideo.value);
+
     const stream = ev.streams && ev.streams[0] ? ev.streams[0] : null;
     if (stream) {
       // persist and attach when possible
@@ -899,6 +902,12 @@ onMounted(() => {
 
 // Ensure remote stream attaches once the video element exists and view is active
 watch([currentView, remoteVideo], async () => {
+  console.log("Remote video watcher triggered:", {
+    currentView: currentView.value,
+    hasRemoteVideo: !!remoteVideo.value,
+    hasRemoteStream: !!remoteMediaStream,
+  });
+
   if (
     currentView.value === "video-call" &&
     remoteVideo.value &&
