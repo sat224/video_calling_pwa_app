@@ -2,31 +2,65 @@
   <div class="app">
     <!-- Auth Screen -->
     <div v-if="!isAuthenticated" class="auth-container">
+      <div class="auth-background">
+        <div class="auth-pattern"></div>
+      </div>
       <div class="auth-form">
-        <h2>Video Call App</h2>
+        <div class="auth-header">
+          <div class="app-logo">
+            <div class="logo-icon">📹</div>
+            <h1>VideoCall</h1>
+          </div>
+          <p class="app-subtitle">Connect with anyone, anywhere</p>
+        </div>
+
         <div class="tabs">
           <button
             @click="authMode = 'login'"
             :class="{ active: authMode === 'login' }"
+            class="tab-btn"
           >
+            <span class="tab-icon">🔑</span>
             Login
           </button>
           <button
             @click="authMode = 'register'"
             :class="{ active: authMode === 'register' }"
+            class="tab-btn"
           >
+            <span class="tab-icon">👤</span>
             Register
           </button>
         </div>
 
-        <form @submit.prevent="authenticate">
-          <input v-model="username" placeholder="Username" required />
-          <button type="submit" :disabled="loading">
-            {{ authMode === "login" ? "Login" : "Register" }}
+        <form @submit.prevent="authenticate" class="auth-form-content">
+          <div class="input-group">
+            <div class="input-icon">👤</div>
+            <input
+              v-model="username"
+              placeholder="Enter your username"
+              required
+              class="auth-input"
+              :disabled="loading"
+            />
+          </div>
+
+          <button type="submit" :disabled="loading" class="auth-submit-btn">
+            <span v-if="loading" class="loading-spinner"></span>
+            <span v-else>{{
+              authMode === "login" ? "Sign In" : "Create Account"
+            }}</span>
           </button>
         </form>
 
-        <div v-if="error" class="error">{{ error }}</div>
+        <div v-if="error" class="error-message">
+          <span class="error-icon">⚠️</span>
+          {{ error }}
+        </div>
+
+        <div class="auth-footer">
+          <p>Secure video calling powered by WebRTC</p>
+        </div>
       </div>
     </div>
 
@@ -34,24 +68,66 @@
     <div v-else class="main-container">
       <!-- Call Interface -->
       <div v-if="currentView === 'call-interface'" class="call-interface">
-        <div class="user-info">
-          <h3>Welcome, {{ currentUser.username }}</h3>
-          <p>Your ID: {{ currentUser.userId }}</p>
+        <!-- Header -->
+        <div class="interface-header">
+          <div class="user-profile">
+            <div class="user-avatar">
+              {{ currentUser.username.charAt(0).toUpperCase() }}
+            </div>
+            <div class="user-details">
+              <h2>Welcome back, {{ currentUser.username }}!</h2>
+              <p class="user-id">ID: {{ currentUser.userId }}</p>
+            </div>
+          </div>
+          <button @click="logout" class="logout-btn">
+            <span class="logout-icon">🚪</span>
+            Logout
+          </button>
         </div>
 
-        <div class="call-section">
-          <h4>Make a Call</h4>
-          <div class="call-input">
-            <input v-model="calleeId" placeholder="Enter user ID to call" />
-            <button @click="initiateCall" :disabled="!calleeId || calling">
-              Call
+        <!-- Quick Call Section -->
+        <div class="quick-call-section">
+          <div class="section-header">
+            <h3>📞 Quick Call</h3>
+            <p>Start a video call instantly</p>
+          </div>
+          <div class="call-input-container">
+            <div class="input-wrapper">
+              <span class="input-prefix">@</span>
+              <input
+                v-model="calleeId"
+                placeholder="Enter user ID to call"
+                class="call-input"
+                :disabled="calling"
+              />
+            </div>
+            <button
+              @click="initiateCall"
+              :disabled="!calleeId || calling"
+              class="call-btn"
+            >
+              <span v-if="calling" class="loading-spinner"></span>
+              <span v-else>📞 Call</span>
             </button>
           </div>
         </div>
 
+        <!-- Contacts Section -->
         <div class="contacts-section">
-          <h4>Contacts</h4>
-          <input v-model="searchQuery" placeholder="Search contacts..." />
+          <div class="section-header">
+            <h3>👥 Online Users</h3>
+            <p>Connect with available users</p>
+          </div>
+
+          <div class="search-container">
+            <div class="search-icon">🔍</div>
+            <input
+              v-model="searchQuery"
+              placeholder="Search users..."
+              class="search-input"
+            />
+          </div>
+
           <div class="contacts-list">
             <div
               v-for="user in filteredUsers"
@@ -59,13 +135,30 @@
               class="contact-item"
               @click="callUser(user.id)"
             >
+              <div class="contact-avatar">
+                {{ user.username.charAt(0).toUpperCase() }}
+              </div>
               <div class="contact-info">
                 <div class="contact-name">{{ user.username }}</div>
-                <div class="contact-id">{{ user.id }}</div>
+                <div class="contact-id">ID: {{ user.id }}</div>
               </div>
-              <div :class="['status', user.online ? 'online' : 'offline']">
-                {{ user.online ? "Online" : "Offline" }}
+              <div class="contact-actions">
+                <div
+                  :class="[
+                    'status-indicator',
+                    user.online ? 'online' : 'offline',
+                  ]"
+                ></div>
+                <span class="status-text">{{
+                  user.online ? "Online" : "Offline"
+                }}</span>
               </div>
+            </div>
+
+            <div v-if="filteredUsers.length === 0" class="no-contacts">
+              <div class="no-contacts-icon">👥</div>
+              <p>No users found</p>
+              <small>Try adjusting your search</small>
             </div>
           </div>
         </div>
@@ -107,6 +200,14 @@
 
       <!-- Video Call -->
       <div v-else-if="currentView === 'video-call'" class="video-call">
+        <!-- Call Header -->
+        <div class="call-header">
+          <div class="call-info">
+            <h3>{{ calleeInfo.username || "Video Call" }}</h3>
+            <div class="call-duration">{{ callDuration }}</div>
+          </div>
+        </div>
+
         <div class="video-container">
           <!-- Remote video (big) -->
           <div class="remote-wrap">
@@ -126,7 +227,14 @@
               playsinline
               webkit-playsinline
               class="local-video"
+              :class="{ 'video-paused': isVideoPaused }"
             ></video>
+
+            <!-- Video paused overlay for local video -->
+            <div v-if="isVideoPaused" class="video-paused-overlay">
+              <div class="paused-icon">📹</div>
+              <div class="paused-text">Video Paused</div>
+            </div>
 
             <!-- Play button overlay if browser blocked autoplay -->
             <div v-if="showRemotePlayButton" class="play-overlay">
@@ -137,7 +245,26 @@
           </div>
         </div>
 
-        <div class="call-actions-bottom">
+        <!-- Call Controls -->
+        <div class="call-controls">
+          <button
+            @click="toggleMute"
+            class="control-btn"
+            :class="{ active: isMuted }"
+            :title="isMuted ? 'Unmute' : 'Mute'"
+          >
+            {{ isMuted ? "🔇" : "🎤" }}
+          </button>
+
+          <button
+            @click="toggleVideo"
+            class="control-btn"
+            :class="{ active: isVideoPaused }"
+            :title="isVideoPaused ? 'Turn on video' : 'Turn off video'"
+          >
+            {{ isVideoPaused ? "📹" : "📷" }}
+          </button>
+
           <button @click="endCall" class="end-call-btn">📞 End Call</button>
         </div>
       </div>
@@ -165,6 +292,12 @@ const incomingCall = ref(null);
 const calleeInfo = ref({});
 const currentCallId = ref(null);
 
+// Call control states
+const isMuted = ref(false);
+const isVideoPaused = ref(false);
+const callStartTime = ref(null);
+const callDuration = ref("00:00");
+
 /* ---------- DOM refs ---------- */
 const localVideo = ref(null);
 const remoteVideo = ref(null);
@@ -177,6 +310,7 @@ let socket = null;
 let pendingRemoteCandidates = []; // queue ICE until remoteDescription exists
 let remoteMediaStream = null; // persist remote stream even if element not mounted yet
 let callTimeout = null; // timeout for call establishment
+let callTimer = null; // timer for call duration
 
 /* ---------- helpers ---------- */
 const filteredUsers = computed(() =>
@@ -390,6 +524,9 @@ const initializeSocket = () => {
       // Switch to video call view
       currentView.value = "video-call";
 
+      // Start call timer
+      startCallTimer();
+
       // Ensure videos play after view change (important for mobile)
       setTimeout(() => {
         if (localVideo.value && localVideo.value.srcObject) {
@@ -537,6 +674,9 @@ const acceptCall = async () => {
     // Switch to video call view FIRST
     currentView.value = "video-call";
 
+    // Start call timer
+    startCallTimer();
+
     // Wait for DOM update, then ensure videos play
     await new Promise((resolve) => setTimeout(resolve, 200));
 
@@ -600,6 +740,13 @@ const cleanupCall = () => {
     callTimeout = null;
   }
 
+  // Stop call timer
+  stopCallTimer();
+
+  // Reset call control states
+  isMuted.value = false;
+  isVideoPaused.value = false;
+
   pendingRemoteCandidates = [];
   calling.value = false;
   currentCallId.value = null;
@@ -629,6 +776,52 @@ const playRemote = async () => {
   } catch (err) {
     console.warn("playRemote failed", err);
   }
+};
+
+/* ---------- Call Control Functions ---------- */
+const toggleMute = () => {
+  if (!localStream) return;
+
+  const audioTracks = localStream.getAudioTracks();
+  audioTracks.forEach((track) => {
+    track.enabled = isMuted.value;
+  });
+
+  isMuted.value = !isMuted.value;
+  console.log(isMuted.value ? "Muted" : "Unmuted");
+};
+
+const toggleVideo = () => {
+  if (!localStream) return;
+
+  const videoTracks = localStream.getVideoTracks();
+  videoTracks.forEach((track) => {
+    track.enabled = isVideoPaused.value;
+  });
+
+  isVideoPaused.value = !isVideoPaused.value;
+  console.log(isVideoPaused.value ? "Video paused" : "Video resumed");
+};
+
+const startCallTimer = () => {
+  callStartTime.value = Date.now();
+  callTimer = setInterval(() => {
+    const elapsed = Date.now() - callStartTime.value;
+    const minutes = Math.floor(elapsed / 60000);
+    const seconds = Math.floor((elapsed % 60000) / 1000);
+    callDuration.value = `${minutes.toString().padStart(2, "0")}:${seconds
+      .toString()
+      .padStart(2, "0")}`;
+  }, 1000);
+};
+
+const stopCallTimer = () => {
+  if (callTimer) {
+    clearInterval(callTimer);
+    callTimer = null;
+  }
+  callStartTime.value = null;
+  callDuration.value = "00:00";
 };
 
 /* ---------- Auth + users ---------- */
@@ -672,6 +865,19 @@ const loadUsers = async () => {
   } catch (err) {
     console.error("loadUsers error", err);
   }
+};
+
+const logout = () => {
+  if (socket) {
+    socket.disconnect();
+    socket = null;
+  }
+  cleanupCall();
+  isAuthenticated.value = false;
+  currentUser.username = "";
+  currentUser.userId = "";
+  username.value = "";
+  error.value = "";
 };
 
 /* ---------- Lifecycle ---------- */
@@ -731,63 +937,672 @@ watch([currentView, localVideo], async () => {
 .app {
   min-height: 100vh;
   background: #f5f5f5;
-  padding: 20px;
+  padding: 0;
   box-sizing: border-box;
+  font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+    sans-serif;
 }
-.auth-container,
-.main-container {
+
+/* Auth Container */
+.auth-container {
+  min-height: 100vh;
   display: flex;
   justify-content: center;
   align-items: center;
+  position: relative;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  overflow: hidden;
 }
+
+.auth-background {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+}
+
+.auth-pattern {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-image: radial-gradient(
+      circle at 25% 25%,
+      rgba(255, 255, 255, 0.1) 0%,
+      transparent 50%
+    ),
+    radial-gradient(
+      circle at 75% 75%,
+      rgba(255, 255, 255, 0.1) 0%,
+      transparent 50%
+    );
+  animation: float 20s ease-in-out infinite;
+}
+
+@keyframes float {
+  0%,
+  100% {
+    transform: translateY(0px) rotate(0deg);
+  }
+  50% {
+    transform: translateY(-20px) rotate(180deg);
+  }
+}
+
 .auth-form {
-  background: white;
-  padding: 20px;
-  border-radius: 8px;
-  width: 320px;
-  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.06);
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(20px);
+  padding: 40px;
+  border-radius: 20px;
+  width: 100%;
+  max-width: 400px;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  position: relative;
+  z-index: 10;
+  animation: slideUp 0.6s ease-out;
 }
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.auth-header {
+  text-align: center;
+  margin-bottom: 30px;
+}
+
+.app-logo {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.logo-icon {
+  font-size: 32px;
+  animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.1);
+  }
+}
+
+.app-logo h1 {
+  margin: 0;
+  font-size: 28px;
+  font-weight: 700;
+  background: linear-gradient(135deg, #667eea, #764ba2);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.app-subtitle {
+  color: #666;
+  margin: 0;
+  font-size: 14px;
+}
+
 .tabs {
   display: flex;
-  gap: 6px;
-  margin-bottom: 12px;
+  gap: 8px;
+  margin-bottom: 30px;
+  background: #f8f9fa;
+  padding: 4px;
+  border-radius: 12px;
 }
-.tabs button {
+
+.tab-btn {
   flex: 1;
-  padding: 8px;
+  padding: 12px 16px;
   border: none;
-  background: #eee;
+  background: transparent;
   cursor: pointer;
+  border-radius: 8px;
+  font-weight: 500;
+  transition: all 0.3s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
 }
-.tabs button.active {
-  background: #007bff;
-  color: #fff;
+
+.tab-btn:hover {
+  background: rgba(102, 126, 234, 0.1);
+}
+
+.tab-btn.active {
+  background: linear-gradient(135deg, #667eea, #764ba2);
+  color: white;
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+}
+
+.tab-icon {
+  font-size: 16px;
+}
+
+.auth-form-content {
+  margin-bottom: 20px;
+}
+
+.input-group {
+  position: relative;
+  margin-bottom: 20px;
+}
+
+.input-icon {
+  position: absolute;
+  left: 16px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 18px;
+  color: #999;
+  z-index: 2;
+}
+
+.auth-input {
+  width: 100%;
+  padding: 16px 16px 16px 50px;
+  border: 2px solid #e9ecef;
+  border-radius: 12px;
+  font-size: 16px;
+  transition: all 0.3s ease;
+  background: white;
+  box-sizing: border-box;
+}
+
+.auth-input:focus {
+  outline: none;
+  border-color: #667eea;
+  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+}
+
+.auth-input:disabled {
+  background: #f8f9fa;
+  cursor: not-allowed;
+}
+
+.auth-submit-btn {
+  width: 100%;
+  padding: 16px;
+  background: linear-gradient(135deg, #667eea, #764ba2);
+  color: white;
+  border: none;
+  border-radius: 12px;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.auth-submit-btn:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 25px rgba(102, 126, 234, 0.3);
+}
+
+.auth-submit-btn:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.loading-spinner {
+  width: 20px;
+  height: 20px;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-top: 2px solid white;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
+.error-message {
+  background: #fee;
+  color: #c33;
+  padding: 12px 16px;
+  border-radius: 8px;
+  margin-bottom: 20px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid #fcc;
+  animation: shake 0.5s ease-in-out;
+}
+
+@keyframes shake {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  25% {
+    transform: translateX(-5px);
+  }
+  75% {
+    transform: translateX(5px);
+  }
+}
+
+.error-icon {
+  font-size: 16px;
+}
+
+.auth-footer {
+  text-align: center;
+  color: #999;
+  font-size: 12px;
+}
+
+.auth-footer p {
+  margin: 0;
+}
+
+/* Main Container */
+.main-container {
+  min-height: 100vh;
+  background: #f8f9fa;
+  padding: 0;
 }
 .call-interface {
   width: 100%;
-  max-width: 900px;
+  max-width: 1200px;
   margin: 0 auto;
+  padding: 20px;
+  min-height: 100vh;
 }
-.contacts-list {
-  max-height: 220px;
-  overflow: auto;
-  margin-top: 10px;
-}
-.contact-item {
+
+.interface-header {
   display: flex;
   justify-content: space-between;
-  padding: 8px;
-  border-radius: 6px;
-  border: 1px solid #eee;
-  margin-bottom: 8px;
+  align-items: center;
+  background: white;
+  padding: 24px 32px;
+  border-radius: 16px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+  margin-bottom: 24px;
+  border: 1px solid #e9ecef;
+}
+
+.user-profile {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.user-avatar {
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #667eea, #764ba2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-size: 24px;
+  font-weight: 700;
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+}
+
+.user-details h2 {
+  margin: 0;
+  font-size: 24px;
+  font-weight: 700;
+  color: #2c3e50;
+}
+
+.user-id {
+  margin: 4px 0 0 0;
+  color: #6c757d;
+  font-size: 14px;
+  font-family: "Courier New", monospace;
+}
+
+.logout-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 20px;
+  background: #f8f9fa;
+  border: 1px solid #e9ecef;
+  border-radius: 12px;
+  color: #6c757d;
   cursor: pointer;
-  background: #fff;
+  transition: all 0.3s ease;
+  font-weight: 500;
 }
-.status.online {
-  color: green;
+
+.logout-btn:hover {
+  background: #e9ecef;
+  color: #495057;
+  transform: translateY(-1px);
 }
-.status.offline {
-  color: gray;
+
+.logout-icon {
+  font-size: 16px;
+}
+
+.quick-call-section,
+.contacts-section {
+  background: white;
+  border-radius: 16px;
+  padding: 24px 32px;
+  margin-bottom: 24px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+  border: 1px solid #e9ecef;
+}
+
+.section-header {
+  margin-bottom: 24px;
+}
+
+.section-header h3 {
+  margin: 0 0 8px 0;
+  font-size: 20px;
+  font-weight: 700;
+  color: #2c3e50;
+}
+
+.section-header p {
+  margin: 0;
+  color: #6c757d;
+  font-size: 14px;
+}
+
+.call-input-container {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
+.input-wrapper {
+  flex: 1;
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.input-prefix {
+  position: absolute;
+  left: 16px;
+  color: #6c757d;
+  font-weight: 600;
+  font-size: 16px;
+  z-index: 2;
+}
+
+.call-input {
+  width: 100%;
+  padding: 16px 16px 16px 40px;
+  border: 2px solid #e9ecef;
+  border-radius: 12px;
+  font-size: 16px;
+  transition: all 0.3s ease;
+  background: white;
+  box-sizing: border-box;
+}
+
+.call-input:focus {
+  outline: none;
+  border-color: #667eea;
+  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+}
+
+.call-input:disabled {
+  background: #f8f9fa;
+  cursor: not-allowed;
+}
+
+.call-btn {
+  padding: 16px 24px;
+  background: linear-gradient(135deg, #28a745, #20c997);
+  color: white;
+  border: none;
+  border-radius: 12px;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  white-space: nowrap;
+}
+
+.call-btn:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 25px rgba(40, 167, 69, 0.3);
+}
+
+.call-btn:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.search-container {
+  position: relative;
+  margin-bottom: 20px;
+}
+
+.search-icon {
+  position: absolute;
+  left: 16px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #6c757d;
+  font-size: 16px;
+  z-index: 2;
+}
+
+.search-input {
+  width: 100%;
+  padding: 16px 16px 16px 50px;
+  border: 2px solid #e9ecef;
+  border-radius: 12px;
+  font-size: 16px;
+  transition: all 0.3s ease;
+  background: white;
+  box-sizing: border-box;
+}
+
+.search-input:focus {
+  outline: none;
+  border-color: #667eea;
+  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+}
+
+.contacts-list {
+  max-height: 400px;
+  overflow-y: auto;
+  border-radius: 12px;
+}
+
+.contact-item {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 16px;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  border: 1px solid transparent;
+  margin-bottom: 8px;
+}
+
+.contact-item:hover {
+  background: #f8f9fa;
+  border-color: #e9ecef;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+}
+
+.contact-avatar {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #667eea, #764ba2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-size: 18px;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.contact-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.contact-name {
+  font-weight: 600;
+  color: #2c3e50;
+  margin-bottom: 4px;
+  font-size: 16px;
+}
+
+.contact-id {
+  color: #6c757d;
+  font-size: 12px;
+  font-family: "Courier New", monospace;
+}
+
+.contact-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+}
+
+.status-indicator {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.status-indicator.online {
+  background: #28a745;
+  box-shadow: 0 0 8px rgba(40, 167, 69, 0.4);
+}
+
+.status-indicator.offline {
+  background: #6c757d;
+}
+
+.status-text {
+  font-size: 12px;
+  color: #6c757d;
+  font-weight: 500;
+}
+
+.no-contacts {
+  text-align: center;
+  padding: 40px 20px;
+  color: #6c757d;
+}
+
+.no-contacts-icon {
+  font-size: 48px;
+  margin-bottom: 16px;
+  opacity: 0.5;
+}
+
+.no-contacts p {
+  margin: 0 0 8px 0;
+  font-size: 16px;
+  font-weight: 500;
+}
+
+.no-contacts small {
+  font-size: 14px;
+  opacity: 0.7;
+}
+/* Mobile responsive styles */
+@media (max-width: 768px) {
+  .call-interface {
+    padding: 16px;
+  }
+
+  .interface-header {
+    flex-direction: column;
+    gap: 16px;
+    align-items: flex-start;
+    padding: 20px;
+  }
+
+  .user-profile {
+    width: 100%;
+  }
+
+  .logout-btn {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .quick-call-section,
+  .contacts-section {
+    padding: 20px;
+    margin-bottom: 16px;
+  }
+
+  .call-input-container {
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .call-btn {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .contact-item {
+    padding: 12px;
+  }
+
+  .contact-avatar {
+    width: 40px;
+    height: 40px;
+    font-size: 16px;
+  }
+
+  .contact-name {
+    font-size: 14px;
+  }
+
+  .contact-id {
+    font-size: 11px;
+  }
 }
 .video-call {
   display: flex;
@@ -795,6 +1610,33 @@ watch([currentView, localVideo], async () => {
   gap: 12px;
   align-items: center;
   width: 100%;
+  height: 100vh;
+  background: #000;
+  color: white;
+}
+
+.call-header {
+  position: absolute;
+  top: 20px;
+  left: 20px;
+  z-index: 20;
+  background: rgba(0, 0, 0, 0.7);
+  padding: 15px 20px;
+  border-radius: 12px;
+  backdrop-filter: blur(10px);
+}
+
+.call-header h3 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.call-duration {
+  font-size: 14px;
+  color: #ccc;
+  margin-top: 5px;
+  font-family: "Courier New", monospace;
 }
 .video-container {
   position: relative;
@@ -834,23 +1676,107 @@ watch([currentView, localVideo], async () => {
   background: #000;
   z-index: 10;
   transform: scaleX(-1); /* Mirror for natural feel */
+  transition: opacity 0.3s ease;
+}
+
+.local-video.video-paused {
+  opacity: 0.3;
+}
+
+.video-paused-overlay {
+  position: absolute;
+  bottom: 12px;
+  right: 12px;
+  width: 200px;
+  height: 150px;
+  background: rgba(0, 0, 0, 0.8);
+  border: 2px solid #fff;
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  z-index: 15;
+  color: white;
+}
+
+.paused-icon {
+  font-size: 32px;
+  margin-bottom: 8px;
+}
+
+.paused-text {
+  font-size: 12px;
+  font-weight: 600;
 }
 
 /* Mobile responsive adjustments */
 @media (max-width: 768px) {
+  .video-call {
+    height: 100vh;
+    padding: 0;
+  }
+
+  .call-header {
+    top: 10px;
+    left: 10px;
+    right: 10px;
+    padding: 10px 15px;
+  }
+
+  .call-header h3 {
+    font-size: 16px;
+  }
+
+  .call-duration {
+    font-size: 12px;
+  }
+
   .remote-wrap {
     width: 100%;
-    height: 60vh;
-    max-height: 480px;
+    height: 100vh;
+    max-height: none;
   }
+
   .local-video {
-    width: 150px;
-    height: 112px;
-    bottom: 8px;
-    right: 8px;
+    width: 120px;
+    height: 90px;
+    bottom: 100px;
+    right: 10px;
   }
+
+  .video-paused-overlay {
+    width: 120px;
+    height: 90px;
+    bottom: 100px;
+    right: 10px;
+  }
+
+  .paused-icon {
+    font-size: 24px;
+  }
+
+  .paused-text {
+    font-size: 10px;
+  }
+
+  .call-controls {
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    gap: 15px;
+    padding: 12px 20px;
+  }
+
+  .control-btn,
+  .end-call-btn {
+    width: 50px;
+    height: 50px;
+    font-size: 20px;
+  }
+
   .video-container {
-    padding: 0 10px;
+    padding: 0;
   }
 }
 .play-overlay {
@@ -872,6 +1798,70 @@ watch([currentView, localVideo], async () => {
 }
 .call-actions-bottom {
   margin-top: 20px;
+}
+
+.call-controls {
+  position: absolute;
+  bottom: 30px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 20px;
+  align-items: center;
+  background: rgba(0, 0, 0, 0.8);
+  padding: 15px 25px;
+  border-radius: 50px;
+  backdrop-filter: blur(10px);
+  z-index: 20;
+}
+
+.control-btn {
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+  border: none;
+  background: rgba(255, 255, 255, 0.2);
+  color: white;
+  font-size: 24px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.control-btn:hover {
+  background: rgba(255, 255, 255, 0.3);
+  transform: scale(1.1);
+}
+
+.control-btn.active {
+  background: #dc3545;
+  transform: scale(1.1);
+}
+
+.control-btn.active:hover {
+  background: #c82333;
+}
+
+.end-call-btn {
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+  background: #dc3545;
+  color: white;
+  border: none;
+  font-size: 24px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.end-call-btn:hover {
+  background: #c82333;
+  transform: scale(1.1);
 }
 .call-screen {
   display: flex;
