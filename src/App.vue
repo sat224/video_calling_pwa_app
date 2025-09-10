@@ -87,8 +87,8 @@
           <p>{{ incomingCall.callerName }}</p>
         </div>
         <div class="call-actions">
-          <button @click="acceptCall" class="accept-btn">Accept</button>
-          <button @click="rejectCall" class="reject-btn">Reject</button>
+          <button @click="acceptCall" class="accept-btn">✅ Accept</button>
+          <button @click="rejectCall" class="reject-btn">❌ Reject</button>
         </div>
       </div>
 
@@ -101,6 +101,7 @@
               ref="remoteVideo"
               autoplay
               playsinline
+              webkit-playsinline
               class="remote-video"
             ></video>
 
@@ -110,6 +111,7 @@
               autoplay
               muted
               playsinline
+              webkit-playsinline
               class="local-video"
             ></video>
 
@@ -123,7 +125,7 @@
         </div>
 
         <div class="call-actions-bottom">
-          <button @click="endCall" class="end-call-btn">End Call</button>
+          <button @click="endCall" class="end-call-btn">📞 End Call</button>
         </div>
       </div>
     </div>
@@ -231,10 +233,22 @@ const createPeerConnectionIfNeeded = () => {
 const startLocalStream = async () => {
   if (localStream) return localStream;
   try {
-    localStream = await navigator.mediaDevices.getUserMedia({
-      video: true,
-      audio: true,
-    });
+    // Mobile-optimized constraints
+    const constraints = {
+      video: {
+        width: { ideal: 640, max: 1280 },
+        height: { ideal: 480, max: 720 },
+        facingMode: "user", // Front camera for mobile
+        frameRate: { ideal: 15, max: 30 }, // Lower frame rate for mobile
+      },
+      audio: {
+        echoCancellation: true,
+        noiseSuppression: true,
+        autoGainControl: true,
+      },
+    };
+
+    localStream = await navigator.mediaDevices.getUserMedia(constraints);
     console.log("Got local stream", localStream);
     console.log("Local stream tracks:", localStream.getTracks());
 
@@ -244,6 +258,7 @@ const startLocalStream = async () => {
       localVideo.value.srcObject = localStream;
       // local is muted to avoid echo
       localVideo.value.muted = true;
+      localVideo.value.playsInline = true; // Important for iOS
       localVideo.value
         .play()
         .catch((e) => console.warn("localVideo.play() blocked:", e));
@@ -256,6 +271,16 @@ const startLocalStream = async () => {
     return localStream;
   } catch (err) {
     console.error("getUserMedia error:", err);
+    // Show user-friendly error for mobile
+    if (err.name === "NotAllowedError") {
+      alert(
+        "Camera and microphone access is required. Please allow permissions and try again."
+      );
+    } else if (err.name === "NotFoundError") {
+      alert("No camera or microphone found. Please check your device.");
+    } else {
+      alert("Failed to access camera/microphone. Please try again.");
+    }
     throw err;
   }
 };
@@ -399,6 +424,7 @@ const acceptCall = async () => {
     );
 
     // Step 3 - get local stream and add tracks
+    // For mobile, we need to ensure this happens after user interaction
     const stream = await startLocalStream();
     stream.getTracks().forEach((t) => peerConnection.addTrack(t, stream));
 
@@ -415,9 +441,23 @@ const acceptCall = async () => {
     // Drain queued candidates (if any)
     await drainPendingCandidates();
 
+    // Switch to video call view
     currentView.value = "video-call";
+
+    // For mobile, ensure video plays after view change
+    setTimeout(() => {
+      if (localVideo.value && localVideo.value.srcObject) {
+        localVideo.value.play().catch(console.warn);
+      }
+      if (remoteVideo.value && remoteVideo.value.srcObject) {
+        remoteVideo.value.play().catch(console.warn);
+      }
+    }, 100);
   } catch (err) {
     console.error("acceptCall error", err);
+    // Show user-friendly error
+    alert("Failed to accept call. Please try again.");
+    cleanupCall();
   }
 };
 
@@ -645,8 +685,12 @@ watch([currentView, localVideo], async () => {
 }
 .remote-wrap {
   position: relative;
-  width: 640px;
+  width: 100%;
+  max-width: 640px;
   height: 480px;
+  background: #000;
+  border-radius: 8px;
+  overflow: hidden;
 }
 .remote-video {
   width: 100%;
@@ -654,6 +698,7 @@ watch([currentView, localVideo], async () => {
   background: #000;
   border-radius: 8px;
   object-fit: cover;
+  transform: scaleX(-1); /* Mirror for natural feel */
 }
 .local-video {
   position: absolute;
@@ -666,6 +711,25 @@ watch([currentView, localVideo], async () => {
   object-fit: cover;
   background: #000;
   z-index: 10;
+  transform: scaleX(-1); /* Mirror for natural feel */
+}
+
+/* Mobile responsive adjustments */
+@media (max-width: 768px) {
+  .remote-wrap {
+    width: 100%;
+    height: 60vh;
+    max-height: 480px;
+  }
+  .local-video {
+    width: 150px;
+    height: 112px;
+    bottom: 8px;
+    right: 8px;
+  }
+  .video-container {
+    padding: 0 10px;
+  }
 }
 .play-overlay {
   position: absolute;
@@ -685,20 +749,87 @@ watch([currentView, localVideo], async () => {
   cursor: pointer;
 }
 .call-actions-bottom {
-  margin-top: 8px;
-}
-.end-call-btn {
-  padding: 10px 18px;
-  border-radius: 8px;
-  background: #dc3545;
-  color: #fff;
-  border: none;
-  cursor: pointer;
+  margin-top: 20px;
 }
 .call-screen {
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 12px;
+  padding: 20px;
+}
+
+.call-actions {
+  display: flex;
+  gap: 20px;
+  margin-top: 20px;
+}
+
+.accept-btn,
+.reject-btn {
+  padding: 15px 30px;
+  border: none;
+  border-radius: 50px;
+  font-size: 18px;
+  font-weight: bold;
+  cursor: pointer;
+  min-width: 120px;
+  transition: all 0.3s ease;
+}
+
+.accept-btn {
+  background: #28a745;
+  color: white;
+}
+
+.accept-btn:hover {
+  background: #218838;
+  transform: scale(1.05);
+}
+
+.reject-btn {
+  background: #dc3545;
+  color: white;
+}
+
+.reject-btn:hover {
+  background: #c82333;
+  transform: scale(1.05);
+}
+
+.end-call-btn {
+  padding: 15px 30px;
+  border-radius: 50px;
+  background: #dc3545;
+  color: #fff;
+  border: none;
+  cursor: pointer;
+  font-size: 18px;
+  font-weight: bold;
+  min-width: 150px;
+  transition: all 0.3s ease;
+}
+
+.end-call-btn:hover {
+  background: #c82333;
+  transform: scale(1.05);
+}
+
+/* Mobile button improvements */
+@media (max-width: 768px) {
+  .call-actions {
+    flex-direction: column;
+    gap: 15px;
+    width: 100%;
+    max-width: 300px;
+  }
+
+  .accept-btn,
+  .reject-btn,
+  .end-call-btn {
+    width: 100%;
+    padding: 20px;
+    font-size: 20px;
+  }
 }
 </style>
