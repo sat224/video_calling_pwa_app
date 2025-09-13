@@ -493,7 +493,7 @@ const drainPendingCandidates = async () => {
 
 /* ---------- Socket initialization ---------- */
 const initializeSocket = () => {
-  socket = io("https://c7c121f18313.ngrok-free.app");
+  socket = io("https://8128ace9915c.ngrok-free.app");
 
   socket.on("connect", () => {
     console.log("socket connected", socket.id);
@@ -785,7 +785,7 @@ const authenticate = async () => {
   error.value = "";
   try {
     const res = await fetch(
-      `https://c7c121f18313.ngrok-free.app/api/auth/${authMode.value}`,
+      `https://8128ace9915c.ngrok-free.app/api/auth/${authMode.value}`,
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -814,7 +814,7 @@ const authenticate = async () => {
 
 const loadUsers = async () => {
   try {
-    const res = await fetch("https://c7c121f18313.ngrok-free.app/api/users");
+    const res = await fetch("https://8128ace9915c.ngrok-free.app/api/users");
     const data = await res.json();
     users.value = data;
   } catch (err) {
